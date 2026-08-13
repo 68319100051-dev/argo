@@ -11,6 +11,10 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   AlertTriangle,
+  Banknote,
+  Boxes,
+  PackageOpen,
+  Truck,
   Loader2,
 } from "lucide-react";
 
@@ -48,6 +52,10 @@ export default function DashboardPage() {
   const [stockInToday, setStockInToday] = useState(0);
   const [stockOutToday, setStockOutToday] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [totalLots, setTotalLots] = useState(0);
+  const [inventoryValue, setInventoryValue] = useState(0);
+  const [totalStockInAll, setTotalStockInAll] = useState(0);
+  const [totalStockOutAll, setTotalStockOutAll] = useState(0);
   const [recentMovements, setRecentMovements] = useState<MovementRow[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [lowStockCurrentStock, setLowStockCurrentStock] = useState<Record<string, number>>({});
@@ -77,6 +85,47 @@ export default function DashboardPage() {
       .eq("movement_type", "stock_out")
       .gte("created_at", startOfTodayISO);
     setStockOutToday(outCount ?? 0);
+
+    const { count: activeLots } = await supabase
+      .from("lots")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true);
+    setTotalLots(activeLots ?? 0);
+
+    const { data: lotsWithPrice } = await supabase
+      .from("lots")
+      .select("quantity, product:products(price)")
+      .eq("is_active", true);
+
+    if (lotsWithPrice) {
+      let total = 0;
+      for (const lot of lotsWithPrice) {
+        const product = lot.product as unknown as
+          | { price: number | null }
+          | { price: number | null }[]
+          | null;
+        const price =
+          (Array.isArray(product) ? product[0]?.price : product?.price) ?? 0;
+        total += (lot.quantity ?? 0) * price;
+      }
+      setInventoryValue(total);
+    }
+
+    const { data: inRows } = await supabase
+      .from("stock_movements")
+      .select("quantity_change")
+      .eq("movement_type", "stock_in");
+    setTotalStockInAll(
+      (inRows ?? []).reduce((sum, r) => sum + (r.quantity_change ?? 0), 0)
+    );
+
+    const { data: outRows } = await supabase
+      .from("stock_movements")
+      .select("quantity_change")
+      .eq("movement_type", "stock_out");
+    setTotalStockOutAll(
+      (outRows ?? []).reduce((sum, r) => sum + Math.abs(r.quantity_change ?? 0), 0)
+    );
 
     const { data: movements } = await supabase
       .from("stock_movements")
@@ -159,7 +208,14 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const stats = [
+  const stats: {
+    label: string;
+    value: number;
+    icon: typeof Package;
+    tile: string;
+    shadow: string;
+    formatValue?: (value: number) => string;
+  }[] = [
     {
       label: "สินค้าทั้งหมด",
       value: totalProducts,
@@ -187,6 +243,35 @@ export default function DashboardPage() {
       icon: AlertTriangle,
       tile: "from-rose-500 to-red-600",
       shadow: "shadow-rose-500/30",
+    },
+    {
+      label: "ล็อตในสต็อก",
+      value: totalLots,
+      icon: Boxes,
+      tile: "from-sky-500 to-blue-600",
+      shadow: "shadow-sky-500/30",
+    },
+    {
+      label: "มูลค่าสินค้าคงคลัง",
+      value: inventoryValue,
+      icon: Banknote,
+      tile: "from-violet-500 to-purple-600",
+      shadow: "shadow-violet-500/30",
+      formatValue: (v: number) => `${v.toLocaleString("th-TH")} บาท`,
+    },
+    {
+      label: "รับเข้าทั้งหมด",
+      value: totalStockInAll,
+      icon: PackageOpen,
+      tile: "from-teal-500 to-cyan-600",
+      shadow: "shadow-teal-500/30",
+    },
+    {
+      label: "เบิกออกทั้งหมด",
+      value: totalStockOutAll,
+      icon: Truck,
+      tile: "from-fuchsia-500 to-pink-600",
+      shadow: "shadow-fuchsia-500/30",
     },
   ];
 
@@ -224,7 +309,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-2xl font-bold tabular-nums tracking-tight text-slate-900">
-                      {s.value.toLocaleString()}
+                      {s.formatValue
+                        ? s.formatValue(s.value)
+                        : s.value.toLocaleString()}
                     </p>
                     <p className="truncate text-sm text-slate-500">{s.label}</p>
                   </div>
