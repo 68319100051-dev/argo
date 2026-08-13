@@ -401,6 +401,7 @@ export default function DashboardPage() {
                       <tr className="border-b border-slate-200">
                         <th className="px-4 py-3 text-left font-medium text-slate-500">สินค้า</th>
                         <th className="px-4 py-3 text-left font-medium text-slate-500">SKU</th>
+                        <th className="px-4 py-3 text-left font-medium text-slate-500">หน่วย</th>
                         <th className="px-4 py-3 text-right font-medium text-slate-500">คงเหลือ</th>
                         <th className="px-4 py-3 text-right font-medium text-slate-500">จุดสั่งซื้อ</th>
                       </tr>
@@ -410,11 +411,13 @@ export default function DashboardPage() {
                         <tr key={p.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50/50">
                           <td className="px-4 py-3 text-slate-900">{p.name}</td>
                           <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.sku}</td>
+                          <td className="px-4 py-3 text-slate-600">{p.unit}</td>
                           <td className="px-4 py-3 text-right font-medium tabular-nums text-red-600">
-                            {(lowStockCurrentStock[p.id] ?? 0).toLocaleString()}
+                            {(lowStockCurrentStock[p.id] ?? 0).toLocaleString()}{" "}
+                            {p.unit}
                           </td>
                           <td className="px-4 py-3 text-right text-slate-600 tabular-nums">
-                            {p.reorder_point.toLocaleString()}
+                            {p.reorder_point.toLocaleString()} {p.unit}
                           </td>
                         </tr>
                       ))}
