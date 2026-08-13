@@ -44,6 +44,7 @@ export async function processDeliveryImage(
     const result = await chatWithGemini(prompt, {
       imageBase64: stripped,
       responseMimeType: "application/json",
+      agentType: "ocr",
     });
 
     const parsed: OcrResult = JSON.parse(result.text);

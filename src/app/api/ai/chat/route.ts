@@ -139,7 +139,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await chatWithGemini(
-      `ข้อมูลจากระบบ (ถ้ามี):\n${dataContext || "ไม่มี"}\n\nคำถาม: ${question}`
+      `ข้อมูลจากระบบ (ถ้ามี):\n${dataContext || "ไม่มี"}\n\nคำถาม: ${question}`,
+      { agentType: "chat" }
     );
 
     // Log to agent_activity_log

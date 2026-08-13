@@ -91,7 +91,7 @@ export async function orchestrate(
       }
 
       default:
-        return { success: false, error: "ไม่สามารถ识别คำสั่งได้ กรุณาลองใหม่" };
+        return { success: false, error: "ไม่สามารถเข้าใจคำสั่งได้ กรุณาลองใหม่" };
     }
   } catch (err) {
     handleRateLimitError();

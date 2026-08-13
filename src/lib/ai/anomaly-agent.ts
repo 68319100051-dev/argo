@@ -23,7 +23,7 @@ export async function analyzeAnomalies(client?: SupabaseClient): Promise<{
     let analysisText = "";
     if (isGeminiAvailable()) {
       const prompt = `คุณคือผู้เชี่ยวชาญด้านสต็อกสินค้า วิเคราะห์ความผิดปกติต่อไปนี้และให้คำแนะนำ:\n${anomalies.map((a, i) => `${i + 1}. ${a.description} (ระดับ: ${a.severity})`).join("\n")}\n\nให้คำแนะนำเป็นภาษาไทย สั้น กระชับ`;
-      const result = await chatWithGemini(prompt);
+      const result = await chatWithGemini(prompt, { agentType: "anomaly" });
       analysisText = result.text;
     } else {
       const highCount = anomalies.filter((a) => a.severity === "high").length;

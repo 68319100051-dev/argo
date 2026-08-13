@@ -60,7 +60,9 @@ export async function answerQuestion(
       ? `ข้อมูลจากระบบ:\n${dataContext}\n\nคำถาม: ${question}`
       : question;
 
-    const result = await chatWithGemini(`${contextText}\n\n${userMessage}`);
+    const result = await chatWithGemini(`${contextText}\n\n${userMessage}`, {
+      agentType: "chat",
+    });
     return { success: true, answer: result.text };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "เกิดข้อผิดพลาด" };

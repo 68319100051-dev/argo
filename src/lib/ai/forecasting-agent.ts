@@ -23,7 +23,7 @@ export async function forecastProduct(
       const prompt = `สินค้า ${result.productName} มียอดเบิกเฉลี่ย ${result.avgMonthlyOut} ชิ้น/เดือน สต็อกปัจจุบัน ${
         (await (await import("./tools")).getProductStock(productId, client))?.stock ?? 0
       } ชิ้น แนะนำสั่งซื้อ ${result.suggestedOrder} ชิ้น\nให้คำแนะนำสั้น ๆ เป็นภาษาไทย`;
-      const ai = await chatWithGemini(prompt);
+      const ai = await chatWithGemini(prompt, { agentType: "forecast" });
       insight = ai.text;
     }
 
