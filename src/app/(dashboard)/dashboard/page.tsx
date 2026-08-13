@@ -152,7 +152,7 @@ export default function DashboardPage() {
   const [stockInToday, setStockInToday] = useState(0);
   const [stockOutToday, setStockOutToday] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
-  const [totalLots, setTotalLots] = useState(0);
+  const [totalStockUnits, setTotalStockUnits] = useState(0);
   const [inventoryValue, setInventoryValue] = useState(0);
   const [totalStockInAll, setTotalStockInAll] = useState(0);
   const [totalStockOutAll, setTotalStockOutAll] = useState(0);
@@ -192,12 +192,6 @@ export default function DashboardPage() {
       .eq("movement_type", "stock_out")
       .gte("created_at", startOfTodayISO);
     setStockOutToday(outCount ?? 0);
-
-    const { count: activeLots } = await supabase
-      .from("lots")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true);
-    setTotalLots(activeLots ?? 0);
 
     const { data: inRows } = await supabase
       .from("stock_movements")
@@ -292,12 +286,14 @@ export default function DashboardPage() {
       const catValue: Record<string, number> = {};
       const unitMap: Record<string, string> = {};
       let totalValue = 0;
+      let totalUnits = 0;
 
       for (const p of activeProducts) {
         const stock = Math.max(0, stockMap[p.id] ?? 0);
         const price = p.price ?? 0;
         const value = price > 0 ? stock * price : 0;
 
+        totalUnits += stock;
         unitMap[p.id] = p.unit ?? "";
         productRows.push({
           id: p.id,
@@ -325,6 +321,7 @@ export default function DashboardPage() {
       setLowStockProducts(lowStock);
       setLowStockCurrentStock(stockPerLowProduct);
       setInventoryValue(totalValue);
+      setTotalStockUnits(totalUnits);
       setAllProducts(productRows);
       setCategoryValue(catValue);
     }
@@ -412,7 +409,15 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const stats = [
+  const stats: {
+    label: string;
+    value: number;
+    suffix: string;
+    subtitle?: string;
+    icon: typeof Package;
+    tile: string;
+    shadow: string;
+  }[] = [
     {
       label: "สินค้าทั้งหมด",
       value: totalProducts,
@@ -446,17 +451,18 @@ export default function DashboardPage() {
       shadow: "shadow-rose-500/30",
     },
     {
-      label: "ล็อตในสต็อก",
-      value: totalLots,
-      suffix: "ล็อต",
+      label: "สินค้าทั้งหมดในคลัง",
+      value: totalStockUnits,
+      suffix: "ชิ้น",
       icon: Boxes,
       tile: "from-sky-500 to-blue-600",
       shadow: "shadow-sky-500/30",
     },
     {
-      label: "มูลค่าสินค้าคงคลัง",
-      value: inventoryValue,
-      suffix: "บาท",
+      label: "ยอดคงเหลือในคลัง",
+      value: totalStockUnits,
+      suffix: "ชิ้น",
+      subtitle: `มูลค่า ${inventoryValue.toLocaleString("th-TH")} บาท`,
       icon: Banknote,
       tile: "from-violet-500 to-purple-600",
       shadow: "shadow-violet-500/30",
@@ -536,6 +542,9 @@ export default function DashboardPage() {
                       </span>
                     </p>
                     <p className="truncate text-sm text-slate-500">{s.label}</p>
+                    {s.subtitle && (
+                      <p className="truncate text-xs text-slate-400">{s.subtitle}</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
