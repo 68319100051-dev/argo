@@ -44,6 +44,8 @@ const movementTypeLabels: Record<string, string> = {
   adjustment: "ปรับยอด",
 };
 
+const LOW_STOCK_THRESHOLD = 3;
+
 export default function DashboardPage() {
   const supabase = createClient();
 
@@ -91,25 +93,6 @@ export default function DashboardPage() {
       .select("*", { count: "exact", head: true })
       .eq("is_active", true);
     setTotalLots(activeLots ?? 0);
-
-    const { data: lotsWithPrice } = await supabase
-      .from("lots")
-      .select("quantity, product:products(price)")
-      .eq("is_active", true);
-
-    if (lotsWithPrice) {
-      let total = 0;
-      for (const lot of lotsWithPrice) {
-        const product = lot.product as unknown as
-          | { price: number | null }
-          | { price: number | null }[]
-          | null;
-        const price =
-          (Array.isArray(product) ? product[0]?.price : product?.price) ?? 0;
-        total += (lot.quantity ?? 0) * price;
-      }
-      setInventoryValue(total);
-    }
 
     const { data: inRows } = await supabase
       .from("stock_movements")
@@ -169,21 +152,37 @@ export default function DashboardPage() {
 
       const stockMap: Record<string, number> = {};
       for (const m of allMovements ?? []) {
-        stockMap[m.product_id] = (stockMap[m.product_id] ?? 0) + m.quantity_change;
+        stockMap[m.product_id] =
+          (stockMap[m.product_id] ?? 0) + (m.quantity_change ?? 0);
       }
 
-      const lowStock = activeProducts.filter(
-        (p) => (stockMap[p.id] ?? 0) < p.reorder_point
-      );
+      const { data: activeLotsData } = await supabase
+        .from("lots")
+        .select("product_id, quantity")
+        .eq("is_active", true);
 
+      for (const lot of activeLotsData ?? []) {
+        stockMap[lot.product_id] =
+          (stockMap[lot.product_id] ?? 0) + (lot.quantity ?? 0);
+      }
+
+      const lowStock: Product[] = [];
       const stockPerLowProduct: Record<string, number> = {};
-      for (const p of lowStock) {
-        stockPerLowProduct[p.id] = stockMap[p.id] ?? 0;
+      let totalValue = 0;
+
+      for (const p of activeProducts) {
+        const stock = Math.max(0, stockMap[p.id] ?? 0);
+        if (stock <= LOW_STOCK_THRESHOLD) {
+          lowStock.push(p);
+          stockPerLowProduct[p.id] = stock;
+        }
+        if ((p.price ?? 0) > 0) totalValue += stock * (p.price ?? 0);
       }
 
       setLowStockCount(lowStock.length);
       setLowStockProducts(lowStock);
       setLowStockCurrentStock(stockPerLowProduct);
+      setInventoryValue(totalValue);
     }
 
     if (typeof supabase !== "undefined") {
@@ -387,7 +386,7 @@ export default function DashboardPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>สินค้าคงเหลือต่ำกว่าเกณฑ์</CardTitle>
+                <CardTitle>สินค้าใกล้หมด (ไม่เกิน {LOW_STOCK_THRESHOLD} ชิ้น)</CardTitle>
               </CardHeader>
               <CardContent className="overflow-x-auto p-0">
                 {lowStockProducts.length === 0 ? (
@@ -403,7 +402,7 @@ export default function DashboardPage() {
                         <th className="px-4 py-3 text-left font-medium text-slate-500">SKU</th>
                         <th className="px-4 py-3 text-left font-medium text-slate-500">หน่วย</th>
                         <th className="px-4 py-3 text-right font-medium text-slate-500">คงเหลือ</th>
-                        <th className="px-4 py-3 text-right font-medium text-slate-500">จุดสั่งซื้อ</th>
+                        <th className="px-4 py-3 text-right font-medium text-slate-500">เกณฑ์ (ชิ้น)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -417,7 +416,7 @@ export default function DashboardPage() {
                             {p.unit}
                           </td>
                           <td className="px-4 py-3 text-right text-slate-600 tabular-nums">
-                            {p.reorder_point.toLocaleString()} {p.unit}
+                            {LOW_STOCK_THRESHOLD.toLocaleString()} {p.unit}
                           </td>
                         </tr>
                       ))}
