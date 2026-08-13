@@ -21,6 +21,49 @@ function detectIntent(input: string): "summary" | "low_stock" | "movements" | "s
   return "other";
 }
 
+async function buildFullContext(client: SupabaseClient, question: string): Promise<string> {
+  const intent = detectIntent(question);
+  const parts: string[] = [];
+
+  const summary = await getStockSummary(client);
+  parts.push(`ภาพรวมระบบ: สินค้า ${summary.totalProducts} รายการ, สต็อกรวม ${summary.totalStock} ชิ้น, ใกล้หมด ${summary.lowStockCount} รายการ`);
+
+  if (intent === "low_stock") {
+    const items = await getLowStockProducts(undefined, client);
+    parts.push(items.length === 0 ? "ไม่มีสินค้าใกล้หมด" : `สินค้าใกล้หมด:\n${items.map((i) => `- ${i.name} (${i.sku}): คงเหลือ ${i.stock} ${i.unit}`).join("\n")}`);
+  } else {
+    const lowItems = await getLowStockProducts(undefined, client);
+    if (lowItems.length > 0) {
+      parts.push(`สินค้าใกล้หมด (${lowItems.length} รายการ): ${lowItems.map((i) => `${i.name} เหลือ ${i.stock}${i.unit}`).join(", ")}`);
+    }
+  }
+
+  if (intent === "movements") {
+    const movements = await getRecentMovements(7, client);
+    parts.push(movements.length === 0 ? "ไม่มีการเคลื่อนไหว 7 วัน" : `การเคลื่อนไหว 7 วันล่าสุด:\n${movements.slice(0, 15).map((m) => `- ${m.date}: ${m.movement_type === "stock_in" ? "รับเข้า" : m.movement_type === "stock_out" ? "เบิกออก" : m.movement_type} ${Math.abs(m.quantity_change)} ชิ้น${m.note ? ` (${m.note})` : ""}`).join("\n")}`);
+  }
+
+  if (intent === "search") {
+    const term = question.replace(/ค้น|หา|search|สินค้า/gi, "").trim();
+    if (term) {
+      const results = await searchProducts(term, client);
+      parts.push(results.length === 0 ? `ไม่พบ "${term}"` : `ผลค้นหา "${term}": ${results.map((r) => `${r.name} (${r.sku}) ${r.stock}${r.unit}`).join(", ")}`);
+    }
+  }
+
+  if (intent === "list") {
+    const items = await getAllProducts(client);
+    parts.push(items.length === 0 ? "ไม่มีสินค้า" : `สินค้าทั้งหมด ${items.length} รายการ:\n${items.map((i) => `- ${i.name} (${i.sku}): ${i.stock} ${i.unit}${i.category ? ` [${i.category}]` : ""}`).join("\n")}`);
+  }
+
+  const movements = await getRecentMovements(3, client);
+  if (movements.length > 0 && intent !== "movements") {
+    parts.push(`การเคลื่อนไหว 3 วันล่าสุด: ${movements.map((m) => `${m.movement_type === "stock_in" ? "รับ" : "เบิก"} ${Math.abs(m.quantity_change)} ชิ้น`).join(", ")}`);
+  }
+
+  return parts.join("\n\n");
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -67,79 +110,25 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const question = String(body?.message ?? "").trim();
+  const history: Array<{ role: "user" | "assistant"; content: string }> = Array.isArray(body?.history) ? body.history : [];
   if (!question) {
     return NextResponse.json({ error: "กรุณาระบุคำถาม" }, { status: 400 });
   }
 
   try {
     const client = supabase as unknown as SupabaseClient;
-    let dataContext = "";
+    const dataContext = await buildFullContext(client, question);
 
-    switch (detectIntent(question)) {
-      case "summary": {
-        const summary = await getStockSummary(client);
-        dataContext = `ภาพรวมสต็อก: สินค้าทั้งหมด ${summary.totalProducts} รายการ, สต็อกรวม ${summary.totalStock} ชิ้น, สินค้าใกล้หมด ${summary.lowStockCount} รายการ, การเคลื่อนไหว 7 วัน ${summary.recentMovements} รายการ`;
-        break;
-      }
-      case "low_stock": {
-        const items = await getLowStockProducts(undefined, client);
-        dataContext =
-          items.length === 0
-            ? "ไม่มีสินค้าที่ใกล้หมดสต็อก"
-            : `สินค้าที่ใกล้หมด:\n${items.map((i) => `- ${i.name} (${i.sku}): คงเหลือ ${i.stock} ${i.unit}`).join("\n")}`;
-        break;
-      }
-      case "movements": {
-        const movements = await getRecentMovements(7, client);
-        dataContext =
-          movements.length === 0
-            ? "ไม่พบการเคลื่อนไหวใน 7 วันที่ผ่านมา"
-            : `การเคลื่อนไหวล่าสุด:\n${movements
-                .slice(0, 10)
-                .map(
-                  (m) =>
-                    `- ${m.date}: ${
-                      m.movement_type === "stock_in"
-                        ? "รับเข้า"
-                        : m.movement_type === "stock_out"
-                        ? "เบิกออก"
-                        : m.movement_type
-                    } ${Math.abs(m.quantity_change)} ชิ้น${m.note ? ` (${m.note})` : ""}`
-                )
-                .join("\n")}`;
-        break;
-      }
-      case "search": {
-        const term = question.replace(/ค้น|หา|search|สินค้า/gi, "").trim();
-        if (term) {
-          const results = await searchProducts(term, client);
-          dataContext =
-            results.length === 0
-              ? `ไม่พบสินค้าที่ค้นหา "${term}"`
-              : `ผลการค้นหา "${term}":\n${results
-                  .map((r) => `- ${r.name} (${r.sku}): ${r.stock} ${r.unit}${r.category ? ` [${r.category}]` : ""}`)
-                  .join("\n")}`;
-        } else {
-          dataContext = "กรุณาระบุคำค้นหาสินค้า";
-        }
-        break;
-      }
-      case "list": {
-        const items = await getAllProducts(client);
-        dataContext =
-          items.length === 0
-            ? "ไม่มีสินค้าในระบบ"
-            : `รายการสินค้าทั้งหมด (${items.length} รายการ):\n${items
-                .map((i) => `- ${i.name} (${i.sku}): คงเหลือ ${i.stock} ${i.unit}${i.category ? ` [${i.category}]` : ""}`)
-                .join("\n")}`;
-        break;
-      }
-      default:
-        dataContext = "";
-    }
+    const systemPrompt = `คุณคือ Argo ผู้ช่วยบริหารคลังสินค้าอัจฉริยะ ตอบเป็นภาษาไทย กระชับ ตรงประเด็น ใช้ข้อมูลจากระบบจริงเสมอ ห้ามเดาหรือสร้างข้อมูล`;
+
+    const messages = [
+      { role: "system" as const, content: systemPrompt },
+      ...history.slice(-10),
+      { role: "user" as const, content: `ข้อมูลจากระบบ:\n${dataContext}\n\nคำถาม: ${question}` },
+    ];
 
     const result = await chatWithGemini(
-      `ข้อมูลจากระบบ (ถ้ามี):\n${dataContext || "ไม่มี"}\n\nคำถาม: ${question}`,
+      messages.map((m) => m.content).join("\n\n"),
       { agentType: "chat" }
     );
 
