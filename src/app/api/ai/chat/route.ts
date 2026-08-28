@@ -16,8 +16,8 @@ function detectIntent(input: string): "summary" | "low_stock" | "movements" | "s
   if (q.includes("สรุป") || q.includes("ภาพรวม") || q.includes("dashboard")) return "summary";
   if (q.includes("ต่ำ") || q.includes("ใกล้หมด") || q.includes("low stock") || q.includes("หมดสต็อก")) return "low_stock";
   if (q.includes("เคลื่อนไหว") || q.includes("ประวัติ") || q.includes("movement") || q.includes("รายการล่าสุด") || q.includes("เบิก") || q.includes("รับเข้า")) return "movements";
-  if (q.includes("มีสินค้าอะไร") || q.includes("มีอะไร") || q.includes("รายการสินค้า") || q.includes("มีของ")) return "list";
-  if (q.includes("ค้น") || q.includes("หา") || q.includes("search") || q.includes("ดูข้อมูล")) return "search";
+  if (q.includes("มีสินค้าอะไร") || q.includes("มีอะไร") || q.includes("รายการสินค้า") || q.includes("มีของ") || q.includes("มีอะไรบ้าง") || q.includes("กี่อย่าง") || q.includes("ทั้งหมด") || q.includes("list")) return "list";
+  if (q.includes("ค้น") || q.includes("หา") || q.includes("search") || q.includes("ดูข้อมูล") || q.includes("เครื่องดื่ม") || q.includes("อาหาร") || q.includes("หมวด")) return "search";
   return "other";
 }
 
@@ -44,11 +44,13 @@ async function buildFullContext(client: SupabaseClient, question: string): Promi
   }
 
   if (intent === "search") {
-    const term = question.replace(/ค้น|หา|search|สินค้า/gi, "").trim();
-    if (term) {
-      const results = await searchProducts(term, client);
-      parts.push(results.length === 0 ? `ไม่พบ "${term}"` : `ผลค้นหา "${term}": ${results.map((r) => `${r.name} (${r.sku}) ${r.stock}${r.unit}`).join(", ")}`);
+    const term = question.replace(/ค้น|หา|search|สินค้า|มี|อะไรบ้าง|เครื่องดื่ม|อาหาร|หมวด/gi, "").trim();
+    let results = term ? await searchProducts(term, client) : [];
+    if (results.length === 0 && term) {
+      const allItems = await getAllProducts(client);
+      results = allItems.filter((i) => i.category?.toLowerCase().includes(term.toLowerCase()));
     }
+    parts.push(results.length === 0 ? `ไม่พบ "${term}"` : `ผลค้นหา "${term}" (${results.length} รายการ):\n${results.map((r) => `- ${r.name} (${r.sku}): ${r.stock} ${r.unit}${r.category ? ` [${r.category}]` : ""}`).join("\n")}`);
   }
 
   if (intent === "list") {
