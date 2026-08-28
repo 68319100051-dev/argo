@@ -1,7 +1,7 @@
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
 const DEFAULT_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
-const VISION_MODEL = process.env.GROQ_VISION_MODEL ?? "llama-4-scout-17b-16e-instruct";
+const VISION_MODEL = process.env.GROQ_VISION_MODEL ?? "llama-3.3-70b-versatile";
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   chat: `คุณคือ "Argo" ผู้ช่วย AI สำหรับระบบบริหารสต็อกสินค้า ARGO
