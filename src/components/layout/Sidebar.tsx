@@ -21,6 +21,7 @@ import {
   Boxes,
   TrendingUp,
   AlertTriangle,
+  Bot,
 } from "lucide-react";
 
 const navSections = [
@@ -49,8 +50,10 @@ const navSections = [
   {
     label: "AI Agent",
     items: [
+      { href: "/orchestrator", label: "ศูนย์ประสานงาน", icon: Bot },
       { href: "/forecast", label: "พยากรณ์ความต้องการ", icon: TrendingUp },
       { href: "/anomaly", label: "ตรวจสอบความผิดปกติ", icon: AlertTriangle },
+      { href: "/ocr", label: "อ่านเอกสาร (OCR)", icon: FileText },
       { href: "/agent-inbox", label: "AI Inbox", icon: Inbox },
     ],
   },
