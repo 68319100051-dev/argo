@@ -119,18 +119,17 @@ export async function POST(request: NextRequest) {
     const client = supabase as unknown as SupabaseClient;
     const dataContext = await buildFullContext(client, question);
 
-    const systemPrompt = `คุณคือ Argo ผู้ช่วยบริหารคลังสินค้าอัจฉริยะ ตอบเป็นภาษาไทย กระชับ ตรงประเด็น ใช้ข้อมูลจากระบบจริงเสมอ ห้ามเดาหรือสร้างข้อมูล`;
+    const userMessage = `ข้อมูลจากระบบ:\n${dataContext}\n\nคำถาม: ${question}`;
 
-    const messages = [
-      { role: "system" as const, content: systemPrompt },
-      ...history.slice(-10),
-      { role: "user" as const, content: `ข้อมูลจากระบบ:\n${dataContext}\n\nคำถาม: ${question}` },
-    ];
+    const formattedHistory = history.slice(-10).map((m) => ({
+      role: m.role === "assistant" ? "model" as const : "user" as const,
+      parts: [{ text: m.content }],
+    }));
 
-    const result = await chatWithGemini(
-      messages.map((m) => m.content).join("\n\n"),
-      { agentType: "chat" }
-    );
+    const result = await chatWithGemini(userMessage, {
+      agentType: "chat",
+      history: formattedHistory,
+    });
 
     // Log to agent_activity_log
     await supabase.from("agent_activity_log").insert({
