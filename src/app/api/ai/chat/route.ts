@@ -100,6 +100,9 @@ export async function POST(request: NextRequest) {
     const client = supabase as unknown as SupabaseClient;
     const dataContext = await buildFullContext(client);
 
+    console.log("[AI Chat] context length:", dataContext.length);
+    console.log("[AI Chat] context preview:", dataContext.substring(0, 500));
+
     const userMessage = `ข้อมูลจากระบบ:\n${dataContext}\n\nคำถาม: ${question}`;
 
     const formattedHistory = history.slice(-10).map((m) => ({
